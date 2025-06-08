@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>整理券発行</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 2rem;
+    }
+    button {
+      font-size: 1.2rem;
+      padding: 0.5rem 1.5rem;
+      margin-top: 1rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+    }
+    .number {
+      font-size: 2rem;
+      margin: 1rem 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>整理券システム</h1>
+
+  <div class="number">あなたの番号：<span id="yourNumber">--</span></div>
+  <div class="number">現在呼び出し中：<span id="currentNumber">--</span></div>
+
+  <button onclick="getTicket()">整理券を取得する</button>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+  <!-- LINE LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+  <script>
+    // 🔧 ここをあなたの Firebase 設定に書き換えてください
+    const firebaseConfig = {
+      apiKey: "AIzaSyDICyfIYub_iXfCV_V2Ox5et3VJJPoA6lQ",
+      authDomain: "seiriken-syste.firebaseapp.com",
+      databaseURL: "https://seiriken-system.firebaseio.com",
+      projectId: "seiriken-system",
+      storageBucket: "seiriken-system.appspot.com",
+      messagingSenderId: "1019935978884",
+      appId: "1:1019935978884:web:7da46483c096c4619f59d1"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let userId = "";
+
+    // LINE LIFF 初期化
+    liff.init({ liffId: "2007542493" })
+      .then(() => liff.getProfile())
+      .then(profile => {
+        userId = profile.userId;
+
+        // 既に整理券を持っているかチェック
+        db.ref("tickets/" + userId).once("value", snapshot => {
+          if (snapshot.exists()) {
+            document.getElementById("yourNumber").innerText = snapshot.val();
+          }
+        });
+
+        // 現在呼び出し番号のリアルタイム監視
+        db.ref("currentNumber").on("value", snapshot => {
+          const num = snapshot.val() || "--";
+          document.getElementById("currentNumber").innerText = num;
+        });
+      });
+
+    // 整理券を取得する関数
+    function getTicket() {
+      db.ref("tickets/" + userId).once("value", snapshot => {
+        if (!snapshot.exists()) {
+          // 最新の番号を +1 して整理券を発行
+          db.ref("lastNumber").transaction(last => {
+            return (last || 0) + 1;
+          }).then(result => {
+            const newNumber = result.snapshot.val();
+            db.ref("tickets/" + userId).set(newNumber);
+            document.getElementById("yourNumber").innerText = newNumber;
